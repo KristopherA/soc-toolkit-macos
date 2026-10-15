@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Local SOC analysis workspace: identity, phishing, mobile, exposure, forensics and threat intel tools.">
+  <title>SOC Toolkit · Local workspace</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to tools</a>
+  <aside class="sidebar">
+    <a class="brand" href="/" aria-label="SOC Toolkit home"><span class="brand-mark" aria-hidden="true">⛨</span><span>SOC<br>Toolkit<span class="brand-small">ANALYST WORKBENCH</span></span></a>
+    <div class="nav-label">WORKSPACE</div>
+    <nav aria-label="Tool categories" id="categories">
+      <button class="nav-item active" data-category="All" aria-pressed="true"><span>All tools</span><span class="nav-count"></span></button>
+      <button class="nav-item" data-category="Web" aria-pressed="false"><span>Web tools</span><span class="nav-count"></span></button>
+      <button class="nav-item" data-category="CLI" aria-pressed="false"><span>Command line</span><span class="nav-count"></span></button>
+      <button class="nav-item" data-category="Identity" aria-pressed="false"><span>Identity</span><span class="nav-count"></span></button>
+      <button class="nav-item" data-category="Phishing" aria-pressed="false"><span>Phishing</span><span class="nav-count"></span></button>
+      <button class="nav-item" data-category="Mobile" aria-pressed="false"><span>Mobile</span><span class="nav-count"></span></button>
+      <button class="nav-item" data-category="Exposure" aria-pressed="false"><span>Exposure</span><span class="nav-count"></span></button>
+      <button class="nav-item" data-category="Forensics" aria-pressed="false"><span>Forensics</span><span class="nav-count"></span></button>
+      <button class="nav-item" data-category="Vulnerability" aria-pressed="false"><span>Vulnerability</span><span class="nav-count"></span></button>
+      <button class="nav-item" data-category="OSINT" aria-pressed="false"><span>OSINT</span><span class="nav-count"></span></button>
+      <button class="nav-item" data-category="Threat Intel" aria-pressed="false"><span>Threat Intel</span><span class="nav-count"></span></button>
+      <button class="nav-item" data-category="Reference" aria-pressed="false"><span>Reference</span><span class="nav-count"></span></button>
+    </nav>
+    <div class="sidebar-bottom"><span class="local-dot"></span> On this Mac<p>Local access · Persistent storage</p><span class="sidebar-note">Evidence goes in cases/. Nothing leaves the Mac unless a tool looks it up.</span></div>
+  </aside>
+  <main id="main">
+    <header class="topbar"><span class="breadcrumb">Workspace <span>/</span> Overview</span><span class="host-label">LOCALHOST</span></header>
+    <section class="intro" aria-labelledby="heading">
+      <div><p class="eyebrow">THE SOC WORKBENCH</p><h1 id="heading">Investigate without leaving the desk.</h1><p class="subtitle">Loading tools…</p></div>
+      <div class="summary"><strong id="ready-count">—<span> / 5</span></strong><span id="summary-label">Checking availability</span></div>
+    </section>
+    <div class="toolbar">
+      <div class="section-heading"><h2 id="category-title">All tools</h2><span id="result-count"></span></div>
+      <div class="toolbar-actions"><label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Find a tool…" aria-label="Search tools"><kbd>/</kbd></label><button id="refresh" class="refresh" aria-label="Refresh availability">↻</button></div>
+    </div>
+    <div id="notice" class="notice" role="status" hidden></div>
+    <section id="tools" class="tools" aria-label="Available tools" aria-busy="true"></section>
+    <p id="empty" class="empty" hidden>No tools match your search. Try a different name or category.</p>
+    <div class="switch-note"><span aria-hidden="true">↗</span><p>Web tools open in the <strong>service tab</strong>. <strong>Command-line</strong> cards copy a ready-to-run <code>./soc</code> command: run it in Terminal from the toolkit folder, with evidence in <code>cases/</code> (seen as <code>/case</code>). External sites open in a new tab.</p></div>
+    <details class="setup"><summary>First time here? <span>Accounts, first runs &amp; safe handling</span><span class="details-arrow">+</span></summary><div class="setup-body">
+      <p><strong>BloodHound CE:</strong> sign in as <code>admin</code> with <code>BLOODHOUND_ADMIN_PASSWORD</code> from <code>.env</code>; you must set a new password at first login. Upload SharpHound/AzureHound ZIPs from Administration &rarr; File Ingest.</p>
+      <p><strong>MobSF:</strong> sign in with <code>mobsf</code> / <code>mobsf</code> and change it under the account menu. Uploads are analyzed statically; dynamic analysis is not available in Docker on a Mac.</p>
+      <p><strong>OWASP Nettacker:</strong> paste <code>NETTACKER_API_KEY</code> from <code>.env</code> into the key box. Scan only systems your organization owns or you are authorized to test.</p>
+      <p><strong>ClickGrab and Email Check:</strong> no account. Both contact the site or mail server you submit, from this Mac's public IP.</p>
+      <p><strong>Command-line tools</strong> build on first use. Build them all ahead of time (Ghidra takes 10–20 minutes):</p>
+      <div class="command"><code>docker compose --profile cli --profile ghidra build</code><button id="copy-command" type="button">Copy</button></div>
+      <p class="muted">Availability means the web service responds. It does not verify logins or every feature. The full command reference is in <code>SOC-TOOLKIT-CHEATSHEET.txt</code>.</p>
+    </div></details>
+    <footer><span>SOC TOOLKIT <span class="footer-dot">·</span> macOS edition</span><span id="last-check">Waiting for first check</span></footer>
+  </main>
+</body>
+</html>

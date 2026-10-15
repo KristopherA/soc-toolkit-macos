@@ -1,0 +1,52 @@
+#!/bin/bash
+# Run a SOC Toolkit command-line tool in a throwaway container.
+#   ./soc <tool> [arguments]      e.g. ./soc vol -f /case/mem.raw windows.pslist
+# Files go in ./cases on the Mac, which every tool sees as /case.
+set -euo pipefail
+cd "$(dirname "$0")"
+export PATH="/usr/local/bin:$HOME/.docker/bin:/opt/homebrew/bin:$PATH"
+usage() {
+  cat <<'USAGE'
+Usage: ./soc <tool> [arguments]
+
+  vol | volshell           Volatility 3 memory analysis
+  mvt-ios | mvt-android    Mobile Verification Toolkit
+  clickgrab                ClickGrab lure analysis (reports to cases/clickgrab)
+  vt                       VirusTotal CLI (VTCLI_APIKEY in .env)
+  amass                    Attack-surface mapping
+  tlsx                     TLS certificate inspection
+  dnsping | dnstraceroute | dnseval   dnsdiag DNS diagnostics
+  grype | syft             Image/folder vulnerability scan and SBOM
+  maigret                  Username OSINT
+  ghidra                   Ghidra headless analyzer
+  build [tool]             Build or update CLI images (all when no tool given)
+  shell <tool>             Open a shell in a tool's container (where the image has one)
+
+Evidence: put files in ./cases and refer to them as /case/<file>.
+USAGE
+}
+[[ $# -ge 1 ]] || { usage; exit 1; }
+tool=$1; shift
+# No TTY when output is piped or redirected (./soc vt file x > out.json), so files get clean output.
+tty=(); [[ -t 0 && -t 1 ]] || tty=(-T)
+run() { local svc=$1; shift; exec docker compose run --rm "${tty[@]}" "$svc" "$@"; }
+runep() { local svc=$1 ep=$2; shift 2; exec docker compose run --rm "${tty[@]}" --entrypoint "$ep" "$svc" "$@"; }
+case "$tool" in
+  vol)            run volatility3 "$@" ;;
+  volshell)       runep volatility3 volshell "$@" ;;
+  mvt-ios|mvt-android) runep mvt "$tool" "$@" ;;
+  clickgrab)      mkdir -p cases/clickgrab; runep clickgrab-cli python clickgrab.py --output-dir /case/clickgrab "$@" ;;
+  vt)             run vtcli "$@" ;;
+  amass)          run amass "$@" ;;
+  tlsx)           run tlsx "$@" ;;
+  dnsping|dnstraceroute|dnseval) runep dnsdiag "$tool.py" "$@" ;;
+  grype)          run grype "$@" ;;
+  syft)           run syft "$@" ;;
+  maigret)        mkdir -p cases/maigret; run maigret --folderoutput /case/maigret "$@" ;;
+  ghidra)         run ghidra "$@" ;;
+  build)          if [[ $# -gt 0 ]]; then exec docker compose --profile cli --profile ghidra build "$@"; else exec docker compose --profile cli build; fi ;;
+  shell)          [[ $# -ge 1 ]] || { echo "Usage: ./soc shell <service>"; exit 1; }
+                  svc=$1; exec docker compose run --rm --entrypoint sh "$svc" ;;
+  -h|--help|help) usage ;;
+  *) echo "Unknown tool: $tool"; echo; usage; exit 1 ;;
+esac

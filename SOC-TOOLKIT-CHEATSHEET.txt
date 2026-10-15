@@ -1,0 +1,761 @@
+SOC TOOLKIT CHEAT SHEET
+Tools:     SOC Toolkit (macOS edition) - web tools and ./soc command-line tools
+OS:        macOS (Docker Desktop, Apple Silicon or Intel). Commands run in Terminal from the toolkit folder.
+Generated: 2026-10-15
+
+Conventions
+  Run every command from the toolkit folder:
+    cd "~/Documents/Guides and Scripts/30_Toolkits/soc-toolkit-macos"
+  Evidence goes in ./cases on the Mac. Inside every tool it is /case.
+  ./soc <tool> starts a throwaway container and removes it when the command ends.
+  Secrets and ports live in .env (never commit or email it).
+
+
+SETUP & LIFECYCLE
+---
+
+COMMAND
+  ./start.command
+
+DESCRIPTION
+  Starts Docker Desktop if needed, creates .env with fresh secrets on first run, copies tool sources, starts the web tools and opens the dashboard.
+
+USAGE
+  ./start.command
+
+SUCCESS
+  Dashboard: https://soc.tools.kristopher.cloud  (fallback: http://localhost:9080)
+  BloodHound and MobSF take a minute or two to initialize. The dashboard updates their availability.
+
+FAILURE
+  Install Docker Desktop for Mac first ... - Docker is not installed or not on PATH.
+  Missing /etc/hosts entry for soc.tools.kristopher.cloud - run the printed sudo command once.
+  The dashboard did not become ready. Check: docker compose logs dashboard - container failed to start.
+
+---
+
+COMMAND
+  ./stop.command
+
+DESCRIPTION
+  Stops all web tools. Data, cases and settings are kept.
+
+USAGE
+  ./stop.command
+
+SUCCESS
+  SOC Toolkit stopped. Your data and settings are preserved.
+
+FAILURE
+  no configuration file provided: not found - run it from the toolkit folder (double-click in Finder does this).
+
+---
+
+COMMAND
+  docker compose ps --format '{{.Service}} {{.State}} {{.Status}}'
+
+DESCRIPTION
+  Shows the state of every always-on container.
+
+USAGE
+  docker compose ps --format '{{.Service}} {{.State}} {{.Status}}'
+
+SUCCESS
+  bloodhound running Up 58 seconds
+  dashboard running Up 2 minutes (healthy)
+  mobsf running Up 45 seconds (health: starting)
+
+FAILURE
+  mobsf restarting Restarting (1) 24 seconds ago - read its logs: docker compose logs --tail 40 mobsf
+
+---
+
+COMMAND
+  docker compose logs --tail 40 <service>
+
+DESCRIPTION
+  Last log lines of one web tool: bloodhound, mobsf, nettacker, clickgrab, reacher, dashboard.
+
+USAGE
+  docker compose logs --tail 40 nettacker
+
+SUCCESS
+  nettacker-1  |  * Running on https://127.0.0.1:5000
+
+FAILURE
+  no such service: nettaker - service name is misspelled; list names with docker compose config --services
+
+---
+
+COMMAND
+  ./sync-sources.sh && ./soc build
+
+DESCRIPTION
+  Refreshes the source-built tools (ClickGrab, vt-cli, MVT, dnsdiag, Volatility 3, Nettacker) from GitHubProjects and rebuilds their images. Run after updating a project there.
+
+USAGE
+  ./sync-sources.sh && ./soc build
+
+SUCCESS
+  src/volatility3  <-  Forensics-DFIR/volatility3
+  Image soc-toolkit-macos/volatility3:local Built
+
+FAILURE
+  GitHubProjects folder not found: ... (set GITHUB_PROJECTS_DIR in .env) - the path in .env is wrong.
+
+---
+
+COMMAND
+  docker compose pull && docker compose up -d
+
+DESCRIPTION
+  Updates the published images (BloodHound, MobSF, Reacher, Amass, tlsx, Grype, Syft, Maigret) and restarts changed services.
+
+USAGE
+  docker compose --profile cli pull && docker compose up -d
+
+SUCCESS
+  Image specterops/bloodhound:latest Pulled
+  Container soc-toolkit-macos-bloodhound-1 Started
+
+FAILURE
+  toomanyrequests: You have reached your pull rate limit - sign in to Docker Hub in Docker Desktop and retry.
+
+---
+
+COMMAND
+  sed -n 's/^<KEY>=//p' .env
+
+DESCRIPTION
+  Prints one setting from .env, such as a first-login password or API key.
+
+USAGE
+  sed -n 's/^BLOODHOUND_ADMIN_PASSWORD=//p' .env
+
+SUCCESS
+  Bh-3f9c...-Q7!
+
+FAILURE
+  (no output) - key name is wrong or .env not created yet; run ./setup.sh.
+
+
+WEB TOOLS (open from http://localhost:9080)
+---
+
+COMMAND
+  BloodHound CE  http://localhost:9081
+
+DESCRIPTION
+  Active Directory / Entra ID attack-path analysis. Sign in as admin with BLOODHOUND_ADMIN_PASSWORD; a new password is required at first login. Ingest SharpHound or AzureHound ZIPs under Administration > File Ingest.
+
+USAGE
+  Collect on a domain-joined Windows host:  SharpHound.exe -c All --zipfilename corp.zip
+  Then upload corp.zip, and run the pre-built query "Shortest paths to Domain Admins".
+
+SUCCESS
+  File Ingest shows the upload as Complete; the Explore graph lists users, groups and computers.
+
+FAILURE
+  Login fails with the .env password after you changed it - use the new password; .env only seeds the first one.
+
+---
+
+COMMAND
+  MobSF  http://localhost:9082
+
+DESCRIPTION
+  Static analysis of APK, AAB and IPA files: permissions, trackers, hard-coded secrets, malware signals. Sign in as mobsf with MOBSF_ADMIN_PASSWORD.
+
+USAGE
+  Upload suspicious.apk, then read Security Score, Malware Analysis and Hardcoded Secrets.
+
+SUCCESS
+  A report page with an App Security Score and a findings table.
+
+FAILURE
+  Dynamic Analyzer unavailable - expected: dynamic analysis needs an emulator, which Docker on a Mac cannot provide.
+
+---
+
+COMMAND
+  OWASP Nettacker  https://localhost:9083
+
+DESCRIPTION
+  Web-UI scanner for ports, services, CVEs and weak configurations on hosts your organization owns. Uses a self-signed certificate; paste NETTACKER_API_KEY into the key box.
+
+USAGE
+  Targets: app.example.com   Modules: port_scan, ssl_expired_certificate_vuln, http_status_scan
+
+SUCCESS
+  Results tab lists open ports and module findings per target.
+
+FAILURE
+  invalid API key - copy NETTACKER_API_KEY from .env exactly; browsers may also warn about the certificate (accept for localhost).
+
+---
+
+COMMAND
+  ClickGrab web UI  http://localhost:9084
+
+DESCRIPTION
+  Analyze a fake CAPTCHA / ClickFix lure page: redirects, clipboard commands, PowerShell, IOCs. Fetches the page from this Mac's public IP.
+
+USAGE
+  Paste https://suspect.example/verify into Single URL Analysis and run.
+
+SUCCESS
+  Threat score, extracted commands and IOC tables for the page.
+
+FAILURE
+  ConnectionError / timeout - the lure is already taken down; check urlscan.io history instead.
+
+---
+
+COMMAND
+  Email Check  http://localhost:9080/email-check.html
+
+DESCRIPTION
+  Checks whether a sender or reply-to address exists (syntax, MX, disposable domain, SMTP mailbox probe) using a local Reacher backend.
+
+USAGE
+  Enter ceo@examp1e-login.com and press Check address.
+
+SUCCESS
+  ceo@examp1e-login.com - SAFE   (mailbox exists)   or   INVALID (spoofed / invented)
+
+FAILURE
+  No answer within 150 seconds. Outbound TCP 25 is probably blocked ... - the network blocks SMTP; run from a network with port 25 open.
+
+
+MEMORY FORENSICS - VOLATILITY 3
+---
+
+COMMAND
+  ./soc vol -f /case/<image> windows.info
+
+DESCRIPTION
+  Identifies the Windows build in a memory image and downloads matching symbols (cached for next time). Run first on any new image.
+
+USAGE
+  ./soc vol -f /case/ir-042/mem.raw windows.info
+
+SUCCESS
+  Variable        Value
+  NtBuildLab      19041.1.amd64fre.vb_release.191206-1406
+  SystemTime      2026-10-14 21:13:02
+
+FAILURE
+  Unsatisfied requirement plugins.Info.kernel.symbol_table_name - symbols could not download (no internet) or the image is not Windows.
+
+---
+
+COMMAND
+  ./soc vol -f /case/<image> windows.pstree
+
+DESCRIPTION
+  Process tree with parent/child links. Look for Office or browsers spawning cmd.exe, powershell.exe or rundll32.exe.
+
+USAGE
+  ./soc vol -f /case/ir-042/mem.raw windows.pstree
+
+SUCCESS
+  PID   PPID  ImageFileName  ...
+  * 6020 4410 WINWORD.EXE
+  ** 7124 6020 powershell.exe
+
+FAILURE
+  volatility: error: argument plugin: invalid choice ... - plugin name typo; list them with ./soc vol -h.
+
+---
+
+COMMAND
+  ./soc vol -f /case/<image> windows.cmdline
+
+DESCRIPTION
+  Full command line of each process; reveals encoded PowerShell and LOLBin arguments.
+
+USAGE
+  ./soc vol -f /case/ir-042/mem.raw windows.cmdline > cases/ir-042/cmdline.txt
+
+SUCCESS
+  7124  powershell.exe  powershell -nop -w hidden -enc SQBFAFgA...
+
+FAILURE
+  No such file or directory: '/case/ir-042/mem.raw' - the image is not under ./cases on the Mac.
+
+---
+
+COMMAND
+  ./soc vol -f /case/<image> windows.netscan
+
+DESCRIPTION
+  Network connections and listening sockets with owning process, including closed ones still in memory.
+
+USAGE
+  ./soc vol -f /case/ir-042/mem.raw windows.netscan
+
+SUCCESS
+  Proto  LocalAddr     LocalPort  ForeignAddr    ForeignPort  State        PID   Owner
+  TCPv4  10.20.1.55    51544      185.220.101.4  443          ESTABLISHED  7124  powershell.exe
+
+FAILURE
+  (empty table) - smear in a live-acquired image; try windows.netstat as well.
+
+---
+
+COMMAND
+  ./soc vol -f /case/<image> windows.malfind
+
+DESCRIPTION
+  Finds injected code: executable private memory with PE headers or shellcode. Primary injection triage plugin.
+
+USAGE
+  ./soc vol -f /case/ir-042/mem.raw windows.malfind --dump
+
+SUCCESS
+  PID   Process        Start VPN     Protection              Hexdump
+  3388  explorer.exe   0x2c50000     PAGE_EXECUTE_READWRITE  4d 5a 90 00 ...  (MZ = injected PE)
+
+FAILURE
+  Many hits in browsers/.NET apps - JIT code is normal there; focus on MZ headers and non-JIT processes.
+
+---
+
+COMMAND
+  ./soc vol -f /case/<image> yarascan.YaraScan --yara-file /case/<rules.yar>
+
+DESCRIPTION
+  Scans all process and kernel memory with your YARA rules.
+
+USAGE
+  ./soc vol -f /case/ir-042/mem.raw yarascan.YaraScan --yara-file /case/rules/cobaltstrike.yar
+
+SUCCESS
+  Offset      PID   Rule                 Component  Value
+  0x1f2a010   3388  CobaltStrike_Beacon  $s1        ...
+
+FAILURE
+  yara.SyntaxError: line 4: syntax error - fix the rule; test it first in File Triage (Admin Toolkit).
+
+
+REVERSE ENGINEERING - GHIDRA HEADLESS
+---
+
+COMMAND
+  ./soc ghidra /case/<project-dir> <project-name> -import /case/<sample>
+
+DESCRIPTION
+  Imports a sample into a Ghidra project and runs full auto-analysis without a GUI. Runs under Rosetta; first build takes 15+ minutes.
+
+USAGE
+  mkdir -p cases/ir-042/ghidra && ./soc ghidra /case/ir-042/ghidra ir042 -import /case/ir-042/sample.exe
+
+SUCCESS
+  INFO  IMPORTING: file:///case/ir-042/sample.exe
+  INFO  ANALYZING all memory and code: file:///case/ir-042/sample.exe
+  INFO  REPORT: Analysis succeeded for file: file:///case/ir-042/sample.exe
+
+FAILURE
+  ERROR Abort due to Headless analyzer error: Directory not found: /case/ir-042/ghidra - create the folder first.
+
+---
+
+COMMAND
+  ./soc ghidra <dir> <project> -process <sample> -postScript <script> -noanalysis
+
+DESCRIPTION
+  Runs a Ghidra script against an already-analyzed program, for example to list functions or strings.
+
+USAGE
+  ./soc ghidra /case/ir-042/ghidra ir042 -process sample.exe -noanalysis -postScript CountAndSaveStrings.java /case/ir-042/strings.txt
+
+SUCCESS
+  INFO  SCRIPT: /ghidra/Ghidra/Features/Base/ghidra_scripts/CountAndSaveStrings.java (HeadlessAnalyzer)
+  (strings.txt written to cases/ir-042)
+
+FAILURE
+  ERROR Script not found - built-in scripts need only their name; your own scripts go in ./cases and need -scriptPath /case/scripts.
+
+
+MOBILE - MVT (Mobile Verification Toolkit)
+---
+
+COMMAND
+  ./soc mvt-ios download-iocs
+
+DESCRIPTION
+  Downloads current public spyware indicators (Pegasus, Predator, etc.). They persist between runs. Refresh before each investigation.
+
+USAGE
+  ./soc mvt-ios download-iocs
+
+SUCCESS
+  Downloaded indicators "..." to /home/analyst/.local/share/mvt/indicators/...stix2
+
+FAILURE
+  Max retries exceeded with url: raw.githubusercontent.com - no internet from the container.
+
+---
+
+COMMAND
+  ./soc mvt-ios check-backup -o /case/<out> /case/<backup>
+
+DESCRIPTION
+  Checks an unencrypted iTunes/Finder iPhone backup against the indicators. Decrypt an encrypted backup first with decrypt-backup.
+
+USAGE
+  ./soc mvt-ios check-backup -o /case/ir-043/mvt-out /case/ir-043/backup
+
+SUCCESS
+  INFO  Parsing STIX2 indicators ...
+  INFO  The analysis of the backup produced no detections!   (or a list of WARNING ... matched indicator)
+
+FAILURE
+  ERROR  The backup is encrypted - run ./soc mvt-ios decrypt-backup -p <password> -d /case/ir-043/dec /case/ir-043/backup first.
+
+---
+
+COMMAND
+  ./soc mvt-android check-androidqf -o /case/<out> /case/<androidqf-dir>
+
+DESCRIPTION
+  Checks data collected with AndroidQF (run AndroidQF on a Mac/PC with the phone attached by USB).
+
+USAGE
+  ./soc mvt-android check-androidqf -o /case/ir-044/mvt-out /case/ir-044/androidqf
+
+SUCCESS
+  INFO  Running module Packages ... found 213 installed packages
+  INFO  The analysis produced no detections!
+
+FAILURE
+  check-adb fails with no devices - USB passthrough is not possible in Docker on a Mac; use AndroidQF instead.
+
+
+PHISHING - CLICKGRAB CLI
+---
+
+COMMAND
+  ./soc clickgrab "<url>" --format html
+
+DESCRIPTION
+  Analyzes one lure URL (or a text file of URLs) and writes HTML/JSON/CSV reports to cases/clickgrab.
+
+USAGE
+  ./soc clickgrab "https://example.com" --format json
+
+SUCCESS
+  Analysis Summary:
+  URLs analyzed: 1
+  Suspicious sites: 0 (0.0%)
+  Reports generated:
+  - JSON: /case/clickgrab/clickgrab_report_20261015_164140.json
+
+FAILURE
+  Error fetching URL ... Max retries exceeded - the site is offline or blocks your IP.
+
+---
+
+COMMAND
+  ./soc clickgrab --clickfix-gist --limit 20
+
+DESCRIPTION
+  Pulls currently reported ClickFix domains from the community feed and analyzes them; good for building blocklists and detections.
+
+USAGE
+  ./soc clickgrab --clickfix-gist --limit 20 --format csv
+
+SUCCESS
+  URLs analyzed: 20 / Suspicious sites: 14 (70.0%) / Reports generated: - CSV: /case/clickgrab/...
+
+FAILURE
+  Failed to fetch ClickFix gist - GitHub unreachable or rate-limited; retry later.
+
+
+THREAT INTEL - VIRUSTOTAL CLI
+---
+
+COMMAND
+  ./soc vt file <hash>
+
+DESCRIPTION
+  Reputation report for a file hash. Needs VTCLI_APIKEY in .env (free key from virustotal.com account settings).
+
+USAGE
+  ./soc vt file 44d88612fea8a8f36de82e1278abb02f --include=last_analysis_stats,meaningful_name
+
+SUCCESS
+  - _id: "275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f"
+    last_analysis_stats:
+      malicious: 62
+      undetected: 8
+    meaningful_name: "eicar.com"
+
+FAILURE
+  Error: An API key is needed. Either use the --apikey flag or run "vt init" - VTCLI_APIKEY is empty in .env.
+
+---
+
+COMMAND
+  ./soc vt domain|ip|url <value>
+
+DESCRIPTION
+  Reputation for a domain, IP or URL. Use --include to keep output short.
+
+USAGE
+  ./soc vt domain examp1e-login.com --include=last_analysis_stats,creation_date,registrar
+
+SUCCESS
+  last_analysis_stats: { harmless: 55, malicious: 3, suspicious: 1 }
+  creation_date: 1792000000   (Unix time - a recent value means a new lookalike domain)
+
+FAILURE
+  Error: NotFoundError - VT has never seen it; that alone is a signal for a fresh phishing domain.
+
+
+EXPOSURE - AMASS, TLSX, DNSDIAG
+---
+
+COMMAND
+  ./soc amass enum -passive -d <domain> -silent -timeout <minutes>
+
+DESCRIPTION
+  Passive subdomain and infrastructure discovery from public sources. Slow: expect 10+ minutes. Results are stored and can be listed later.
+
+USAGE
+  ./soc amass enum -passive -d example.com -silent -timeout 15
+
+SUCCESS
+  (silent while running; afterwards list the findings:)
+  ./soc amass subs -names -d example.com
+  www.example.com
+  app.example.com
+
+FAILURE
+  Appears to hang with a progress bar - normal for large source sets; add -silent and -timeout, or run it in a second Terminal tab.
+
+---
+
+COMMAND
+  ./soc tlsx -u <host> -json -silent
+
+DESCRIPTION
+  Full TLS probe: protocol, cipher, certificate subject, SANs, issuer and expiry, as JSON.
+
+USAGE
+  ./soc tlsx -u example.com -json -silent
+
+SUCCESS
+  {"host":"example.com","ip":"203.0.113.10","port":"443","tls_version":"tls13","mismatched":true,
+   "not_after":"2026-10-29T23:59:59Z","subject_cn":"www.example.com","subject_an":["www.example.com"],...}
+
+FAILURE
+  [FTL] cause="san or cn flag cannot be used with other probes" - run -san on its own (see next entry).
+
+---
+
+COMMAND
+  ./soc tlsx -u <host> -expired -self-signed -mismatched -silent
+
+DESCRIPTION
+  Flags only problem certificates: expired, self-signed, or name not matching the host. Use -l /case/hosts.txt for many hosts.
+
+USAGE
+  ./soc tlsx -l /case/corp-hosts.txt -expired -self-signed -mismatched -silent
+
+SUCCESS
+  example.com:443 [mismatched]
+  (no output = no problems found)
+
+FAILURE
+  [ERR] Could not connect - host down or port 443 closed; add -p 8443 for other ports.
+
+---
+
+COMMAND
+  ./soc tlsx -u <host> -san -silent
+
+DESCRIPTION
+  Lists the names in a certificate's Subject Alternative Name field; useful for finding related hosts.
+
+USAGE
+  ./soc tlsx -u example.com -san -silent
+
+SUCCESS
+  example.com:443 [www.example.com]
+
+FAILURE
+  (no output) - TLS handshake failed; run the -json probe to see why.
+
+---
+
+COMMAND
+  ./soc dnsping -c <count> -s <resolver> <name>
+
+DESCRIPTION
+  Measures DNS response time and loss against one resolver. Compare internal DNS with a public resolver when users report slowness or suspected DNS hijack.
+
+USAGE
+  ./soc dnsping -c 5 -s 1.1.1.1 example.com
+
+SUCCESS
+  40  bytes from 1.1.1.1: seq=3   time=21.899  ms  NOERROR
+  3 requests transmitted, 3 responses received, 0% lost
+  min=15.111 ms, avg=17.505 ms, max=21.899 ms
+
+FAILURE
+  Request timeout for seq 1 - resolver unreachable or UDP 53 blocked to that server.
+
+---
+
+COMMAND
+  ./soc dnstraceroute -s <resolver> <name>
+
+DESCRIPTION
+  Traceroute toward a DNS server using DNS packets; shows where a query is intercepted or redirected.
+
+USAGE
+  ./soc dnstraceroute -s 8.8.8.8 example.com
+
+SUCCESS
+  1  192.168.65.1  1.2 ms
+  ...
+  9  dns.google (8.8.8.8)  18.4 ms
+
+FAILURE
+  socket error: Operation not permitted - raw sockets are limited in Docker Desktop; use dnsping and dnseval instead.
+
+---
+
+COMMAND
+  ./soc dnseval -f /case/<resolvers.txt> <name>
+
+DESCRIPTION
+  Compares many resolvers at once (latency, loss, DNSSEC flag). One resolver IP per line in the file.
+
+USAGE
+  printf '1.1.1.1\n9.9.9.9\n8.8.8.8\n' > cases/resolvers.txt && ./soc dnseval -f /case/resolvers.txt example.com
+
+SUCCESS
+  server      avg(ms)  min(ms)  max(ms)  stddev  lost(%)  ttl  flags
+  1.1.1.1     16.9     15.0     21.9     2.8     %0       300  QR -- -- RD RA -- --
+
+FAILURE
+  Cannot open file - the list is not under ./cases.
+
+
+VULNERABILITY - GRYPE, SYFT
+---
+
+COMMAND
+  ./soc grype <image> -q
+
+DESCRIPTION
+  Lists known CVEs in a container image (pulled from the registry or taken from this Mac's Docker), with severity and EPSS.
+
+USAGE
+  ./soc grype graylog/graylog:6.1 -q --only-fixed
+
+SUCCESS
+  NAME     INSTALLED   TYPE  VULNERABILITY   SEVERITY  EPSS         RISK
+  zlib     1.3.2-r0    apk   CVE-2026-85091  High      0.4% (27th)  0.3
+
+FAILURE
+  failed to load vulnerability db - first run needs internet to download the database (cached afterwards).
+
+---
+
+COMMAND
+  ./soc grype dir:/case/<folder> --fail-on high
+
+DESCRIPTION
+  Scans a folder (an app, a firmware dump, a project) and returns a non-zero exit code if High or worse is found.
+
+USAGE
+  ./soc grype dir:/case/vendor-app --fail-on high -o table
+
+SUCCESS
+  No vulnerabilities found   (exit code 0)
+
+FAILURE
+  discovered vulnerabilities at or above the severity threshold - exit code 1; fix or document the findings.
+
+---
+
+COMMAND
+  ./soc syft <image> -o <format>
+
+DESCRIPTION
+  Software bill of materials for an image or folder. Save as SPDX/CycloneDX JSON to rescan later with grype sbom:.
+
+USAGE
+  ./soc syft graylog/graylog:6.1 -o cyclonedx-json=/case/graylog-sbom.json -q
+
+SUCCESS
+  (table form)
+  NAME                    VERSION      TYPE
+  alpine-baselayout       3.6.5-r0     apk
+
+FAILURE
+  could not determine source: ... - image name typo or no access to that registry.
+
+
+OSINT - MAIGRET
+---
+
+COMMAND
+  ./soc maigret <username> --top-sites <n> --html
+
+DESCRIPTION
+  Searches sites for accounts with a username (impersonation, harassment, recruiter-scam cases). HTML report saved in cases/maigret.
+
+USAGE
+  ./soc maigret jsmith_corp --top-sites 300 --html --no-progressbar
+
+SUCCESS
+  [+] GitHub: https://github.com/jsmith_corp
+  Search by username jsmith_corp returned 4 accounts.
+  HTML report saved to /case/maigret/report_jsmith_corp.html
+
+FAILURE
+  [!] Too many errors of type "Access denied" ... - sites block automated checks from this IP; results are incomplete, not negative.
+
+
+TROUBLESHOOTING
+---
+
+COMMAND
+  ./soc shell <service>
+
+DESCRIPTION
+  Opens a shell inside a CLI tool's container to inspect files or run the tool by hand (not available in vtcli, which has no shell).
+
+USAGE
+  ./soc shell volatility3
+
+SUCCESS
+  $ ls /case
+
+FAILURE
+  exec: "sh": executable file not found - that image is distroless (vtcli); run ./soc vt directly.
+
+---
+
+COMMAND
+  docker compose run --rm <service> <args>
+
+DESCRIPTION
+  What ./soc runs underneath; use it for options the wrapper does not cover.
+
+USAGE
+  docker compose run --rm -T volatility3 -f /case/mem.raw -r json windows.pslist > cases/pslist.json
+
+SUCCESS
+  JSON written to cases/pslist.json
+
+FAILURE
+  service "volatility" is not defined - use the compose service name (volatility3, mvt, vtcli, clickgrab-cli, dnsdiag, ghidra).
+
+---
+
+Generated by Claude | For internal/reference use only

@@ -1,0 +1,286 @@
+name: soc-toolkit-macos
+
+# Command-line tools share this block: throwaway containers, evidence in ./cases (/case inside).
+# Public resolvers for tools that judge external posture. Docker Desktop's resolver on this Mac
+# returns an empty MX answer for example.com (likely the internal split-horizon zone).
+x-public-dns: &public-dns ["${PUBLIC_DNS_1:-1.1.1.1}", "${PUBLIC_DNS_2:-9.9.9.9}"]
+
+x-cli: &cli
+  profiles: ["cli"]
+  restart: "no"
+  stdin_open: true
+  tty: true
+  working_dir: /case
+  volumes:
+    - ./cases:/case
+  security_opt: [no-new-privileges:true]
+
+services:
+  # ---------------------------------------------------------------- web tools (always on)
+  dashboard:
+    build: ./dashboard
+    image: soc-toolkit-macos/dashboard:local
+    restart: unless-stopped
+    networks:
+      default:
+      lures:
+      # Shared with the Caddy reverse proxy (~/docker/caddy): https://soc.tools.kristopher.cloud
+      proxy:
+        aliases: [soc-dashboard]
+    ports:
+      - "127.0.0.1:${DASHBOARD_PORT:-9080}:8080"
+    environment:
+      DASHBOARD_PORT: "${DASHBOARD_PORT:-9080}"
+      BLOODHOUND_PORT: "${BLOODHOUND_PORT:-9081}"
+      MOBSF_PORT: "${MOBSF_PORT:-9082}"
+      NETTACKER_PORT: "${NETTACKER_PORT:-9083}"
+      CLICKGRAB_PORT: "${CLICKGRAB_PORT:-9084}"
+      REACHER_SECRET: "${REACHER_SECRET:?Run ./start.command to generate settings}"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  bloodhound:
+    image: specterops/bloodhound:${BLOODHOUND_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${BLOODHOUND_PORT:-9081}:8080"
+    environment:
+      bhe_database_connection: "user=bloodhound password=${BLOODHOUND_DB_PASSWORD:?Run ./start.command to generate settings} dbname=bloodhound host=bh-postgres"
+      bhe_neo4j_connection: "neo4j://neo4j:${BLOODHOUND_NEO4J_PASSWORD:?Run ./start.command to generate settings}@bh-neo4j:7687/"
+      bhe_default_admin_principal_name: "admin"
+      bhe_default_admin_password: "${BLOODHOUND_ADMIN_PASSWORD:?Run ./start.command to generate settings}"
+      bhe_default_admin_expire_now: "true"
+      bhe_disable_cypher_complexity_limit: "false"
+      bhe_enable_cypher_mutations: "false"
+      bhe_graph_query_memory_limit: "2"
+    depends_on:
+      bh-postgres: {condition: service_healthy}
+      bh-neo4j: {condition: service_healthy}
+    security_opt: [no-new-privileges:true]
+    logging: &logs
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+
+  bh-postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bloodhound
+      POSTGRES_DB: bloodhound
+      POSTGRES_PASSWORD: "${BLOODHOUND_DB_PASSWORD:?Run ./start.command to generate settings}"
+    volumes:
+      - bh-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bloodhound -d bloodhound -h 127.0.0.1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    security_opt: [no-new-privileges:true]
+    logging: *logs
+
+  bh-neo4j:
+    image: neo4j:4.4
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: "neo4j/${BLOODHOUND_NEO4J_PASSWORD:?Run ./start.command to generate settings}"
+      NEO4J_dbms_memory_heap_max__size: "${BLOODHOUND_NEO4J_HEAP:-2G}"
+    volumes:
+      - bh-neo4j:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7474 >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    logging: *logs
+
+  # One-shot: a new named volume is root-owned, but MobSF runs as UID 9901.
+  mobsf-init:
+    image: busybox:1.37
+    command: ["sh", "-c", "chown -R 9901:9901 /data"]
+    volumes:
+      - mobsf-data:/data
+    restart: "no"
+
+  mobsf:
+    image: opensecurity/mobile-security-framework-mobsf:${MOBSF_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      mobsf-init: {condition: service_completed_successfully}
+    environment:
+      DJANGO_SUPERUSER_USERNAME: mobsf
+      DJANGO_SUPERUSER_PASSWORD: "${MOBSF_ADMIN_PASSWORD:?Run ./start.command to generate settings}"
+    ports:
+      - "127.0.0.1:${MOBSF_PORT:-9082}:8000"
+    volumes:
+      - mobsf-data:/home/mobsf/.MobSF
+    # The image's own healthcheck calls host.docker.internal, which MobSF rejects (HTTP 400).
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null http://127.0.0.1:8000/login/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    security_opt: [no-new-privileges:true]
+    mem_limit: 3g
+    logging: *logs
+
+  # Built from source: the published owasp/nettacker image is stale (2024) and AMD64-only in practice.
+  nettacker:
+    build: ./src/nettacker
+    image: soc-toolkit-macos/nettacker:local
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${NETTACKER_PORT:-9083}:5000"
+    command: ["--start-api", "--api-host", "0.0.0.0", "--api-port", "5000", "--api-access-key", "${NETTACKER_API_KEY:?Run ./start.command to generate settings}"]
+    volumes:
+      - nettacker-data:/usr/src/owaspnettacker/.nettacker
+    security_opt: [no-new-privileges:true]
+    logging: *logs
+
+  clickgrab:
+    build:
+      context: ./src/clickgrab
+      dockerfile: ../../build/clickgrab/Dockerfile
+    image: soc-toolkit-macos/clickgrab:local
+    restart: unless-stopped
+    networks: [lures]
+    ports:
+      - "127.0.0.1:${CLICKGRAB_PORT:-9084}:8501"
+    entrypoint: ["streamlit", "run", "streamlit_app.py", "--server.address=0.0.0.0", "--server.port=8501",
+                 "--server.headless=true", "--browser.gatherUsageStats=false"]
+    environment:
+      OTX_API_KEY: "${OTX_API_KEY:-}"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 1g
+    logging: *logs
+
+  # Email Check backend: no published port; the dashboard proxies /api/email-check to it.
+  reacher:
+    image: reacherhq/backend:${REACHER_TAG:-latest}
+    platform: linux/amd64
+    restart: unless-stopped
+    dns: *public-dns
+    environment:
+      RCH__HEADER_SECRET: "${REACHER_SECRET:?Run ./start.command to generate settings}"
+      RCH__HELLO_NAME: "${REACHER_HELLO_NAME:-localhost}"
+      RCH__FROM_EMAIL: "${REACHER_FROM_EMAIL:-postmaster@localhost}"
+    security_opt: [no-new-privileges:true]
+    mem_limit: 1g
+    logging: *logs
+
+  # ---------------------------------------------------------------- command-line tools (./soc <tool>)
+  volatility3:
+    <<: *cli
+    build:
+      context: ./src/volatility3
+      dockerfile: ../../build/volatility3/Dockerfile
+    image: soc-toolkit-macos/volatility3:local
+    volumes:
+      - ./cases:/case
+      - vol-cache:/home/analyst/.cache/volatility3
+
+  mvt:
+    <<: *cli
+    build:
+      context: ./src/mvt
+      dockerfile: ../../build/mvt/Dockerfile
+    image: soc-toolkit-macos/mvt:local
+    volumes:
+      - ./cases:/case
+      - mvt-iocs:/home/analyst/.local/share/mvt
+
+  clickgrab-cli:
+    <<: *cli
+    image: soc-toolkit-macos/clickgrab:local
+    networks: [lures]
+    working_dir: /app
+    environment:
+      OTX_API_KEY: "${OTX_API_KEY:-}"
+
+  vtcli:
+    <<: *cli
+    build:
+      context: ./src/vt-cli
+      dockerfile: ../../build/vtcli/Dockerfile
+    image: soc-toolkit-macos/vtcli:local
+    environment:
+      VTCLI_APIKEY: "${VTCLI_APIKEY:-}"
+
+  amass:
+    <<: *cli
+    image: owaspamass/amass:${AMASS_TAG:-latest}
+    dns: *public-dns
+    volumes:
+      - ./cases:/case
+      - amass-data:/.config/amass
+
+  tlsx:
+    <<: *cli
+    image: projectdiscovery/tlsx:${TLSX_TAG:-latest}
+    dns: *public-dns
+
+  dnsdiag:
+    <<: *cli
+    build: ./src/dnsdiag
+    image: soc-toolkit-macos/dnsdiag:local
+
+  grype:
+    <<: *cli
+    image: anchore/grype:${GRYPE_TAG:-latest}
+    environment:
+      GRYPE_DB_CACHE_DIR: /grype-db
+    volumes:
+      - ./cases:/case
+      - grype-db:/grype-db
+      # Read-only socket so Grype can scan images already on this Mac; it cannot start containers through a scan.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  syft:
+    <<: *cli
+    image: anchore/syft:${SYFT_TAG:-latest}
+    volumes:
+      - ./cases:/case
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  maigret:
+    <<: *cli
+    image: soxoj/maigret:${MAIGRET_TAG:-latest}
+
+  # Ghidra's Linux decompiler is x86_64 only, so this runs under Rosetta. Own profile: the build is slow.
+  ghidra:
+    <<: *cli
+    profiles: ["ghidra"]
+    build:
+      context: "${GHIDRA_DIR:?Set GHIDRA_DIR in .env}"
+      dockerfile: docker/Dockerfile
+    platform: linux/amd64
+    image: soc-toolkit-macos/ghidra:12.0
+    environment:
+      MODE: headless
+      MAXMEM: "${GHIDRA_MAXMEM:-4G}"
+
+networks:
+  default:
+  # Lure analysis fetches hostile pages: keep it off the network the other tools share.
+  lures:
+  proxy:
+    external: true
+
+volumes:
+  bh-postgres:
+  bh-neo4j:
+  mobsf-data:
+  nettacker-data:
+  vol-cache:
+  mvt-iocs:
+  amass-data:
+  grype-db:

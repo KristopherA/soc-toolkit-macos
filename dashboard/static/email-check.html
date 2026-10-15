@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Email Check · SOC Toolkit</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/email-check.js" defer></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="/" aria-label="SOC Toolkit home"><span class="brand-mark" aria-hidden="true">⛨</span><span>SOC<br>Toolkit<span class="brand-small">ANALYST WORKBENCH</span></span></a>
+    <div class="nav-label">TOOL</div>
+    <nav aria-label="Navigation"><a class="nav-item" href="/"><span>← All tools</span></a><span class="nav-item active"><span>Email Check</span></span></nav>
+    <div class="sidebar-bottom"><span class="local-dot"></span> Reacher<p>Self-hosted · SMTP verification</p><span class="sidebar-note">The check connects to the target domain's mail server from this Mac's public IP.</span></div>
+  </aside>
+  <main id="main">
+    <header class="topbar"><span class="breadcrumb">Phishing <span>/</span> Email Check</span><span class="host-label">LOCALHOST</span></header>
+    <section class="intro"><div><p class="eyebrow">SENDER VERIFICATION</p><h1>Does this mailbox exist?</h1><p class="subtitle">Check a sender, reply-to or lookalike address during phishing triage.</p></div></section>
+    <div class="check-panel">
+      <div class="check-form"><input id="email" type="email" placeholder="ceo@examp1e-login.com" aria-label="Email address" autocomplete="off" spellcheck="false"><button id="go" type="button">Check address</button></div>
+      <p id="state" class="muted" role="status">Checks take 5–150 seconds. Outbound TCP 25 must not be blocked by your network or ISP, or results come back “unknown”.</p>
+      <div id="result" hidden>
+        <div id="verdict" class="verdict"></div>
+        <p id="meaning" class="muted"></p>
+        <div id="facts" class="facts"></div>
+        <details><summary class="muted">Raw Reacher response</summary><pre id="raw" class="raw"></pre></details>
+      </div>
+    </div>
+    <div class="switch-note"><span aria-hidden="true">i</span><p><strong>Reading results:</strong> “risky” usually means catch-all domain, full inbox or role account. Catch-all domains accept any address, so they cannot prove a mailbox exists. A brand-new lookalike domain that is “safe” for a random-looking address is a strong phishing signal.</p></div>
+    <footer><span>SOC TOOLKIT <span class="footer-dot">·</span> Email Check</span><span>Powered by Reacher (check-if-email-exists)</span></footer>
+  </main>
+</body>
+</html>

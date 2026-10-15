@@ -1,0 +1,9 @@
+.env
+.env.tmp.*
+src/
+cases/*
+!cases/README.txt
+backups/
+__pycache__/
+.DS_Store
+cli-build.log
