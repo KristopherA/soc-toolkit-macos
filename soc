@@ -19,10 +19,17 @@ Usage: ./soc <tool> [arguments]
   grype | syft             Image/folder vulnerability scan and SBOM
   maigret                  Username OSINT
   ghidra                   Ghidra headless analyzer
+  hayabusa                 Windows event log (EVTX) triage and timelines
+  sigma                    sigma-cli: check and convert Sigma rules (Lucene/Graylog)
+  detections <target>      Run make <target> in DETECTIONS_DIR (e.g. check, coverage)
+  snort                    Snort 3 (raw arguments)
+  snort-replay             Replay PCAPs through Snort 3 rules: snort-replay [--json] <rules> <pcap>
+  pcapgen                  Build test PCAPs (http, dns, tls, tcp, udp, scan)
   build [tool]             Build or update CLI images (all when no tool given)
   shell <tool>             Open a shell in a tool's container (where the image has one)
 
 Evidence: put files in ./cases and refer to them as /case/<file>.
+Detections repo (DETECTIONS_DIR in .env): /detections/<file> in sigma, detections and snort tools.
 USAGE
 }
 [[ $# -ge 1 ]] || { usage; exit 1; }
@@ -44,6 +51,13 @@ case "$tool" in
   syft)           run syft "$@" ;;
   maigret)        mkdir -p cases/maigret; run maigret --folderoutput /case/maigret "$@" ;;
   ghidra)         run ghidra "$@" ;;
+  hayabusa)       run hayabusa "$@" ;;
+  sigma)          mkdir -p cases/detections; run sigma "$@" ;;
+  detections)     mkdir -p cases/detections
+                  exec docker compose run --rm "${tty[@]}" -w /detections --entrypoint make sigma "$@" ;;
+  snort)          mkdir -p cases/detections; run snort "$@" ;;
+  snort-replay)   mkdir -p cases/detections; runep snort snort-replay "$@" ;;
+  pcapgen)        mkdir -p cases/pcaps; run pcapgen "$@" ;;
   build)          if [[ $# -gt 0 ]]; then exec docker compose --profile cli --profile ghidra build "$@"; else exec docker compose --profile cli build; fi ;;
   shell)          [[ $# -ge 1 ]] || { echo "Usage: ./soc shell <service>"; exit 1; }
                   svc=$1; exec docker compose run --rm --entrypoint sh "$svc" ;;

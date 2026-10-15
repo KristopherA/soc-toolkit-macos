@@ -1,6 +1,9 @@
 const icons = {
   graph: '<circle cx="5" cy="6" r="2.5"/><circle cx="19" cy="6" r="2.5"/><circle cx="12" cy="19" r="2.5"/><path d="M7.3 7.2 10.6 17M16.7 7.2 13.4 17M7.5 6h9"/>',
   phone: '<rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/>',
+  shield: '<path d="M12 2 4 5v6c0 5 3.4 9.2 8 11 4.6-1.8 8-6 8-11V5z"/><path d="m8.5 12 2.5 2.5 4.5-5"/>',
+  wave: '<path d="M2 12h4l3-7 5 14 3-7h5"/>',
+  log: '<path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6M9 13h8M9 17h6"/>',
   radar: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><path d="M12 12 19 5"/>',
   hook: '<path d="M14 3v11a4 4 0 0 1-8 0v-2l3 2"/><path d="M14 3h4"/>',
   mailcheck: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/><path d="m15 17 2 2 4-4"/>',

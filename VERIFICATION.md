@@ -36,3 +36,24 @@ Mac: Apple Silicon, Docker Desktop 29.8.2. Admin Toolkit running alongside (no p
 - Docker Desktop's resolver returned an empty MX answer for example.com; Reacher, Amass and tlsx now use public resolvers (`PUBLIC_DNS_1/2`).
 - MobSF's built-in healthcheck calls host.docker.internal and gets HTTP 400; replaced with a localhost check (now healthy).
 - 2026-10-15: dashboard published as https://soc.tools.kristopher.cloud through Caddy (route + proxy network alias soc-dashboard); verified /api/health 200 with valid wildcard certificate via --resolve.
+
+## Detection engineering additions — 2026-10-15
+
+| Tool | Test | Result |
+|---|---|---|
+| Hayabusa 4.1.0 | `dfir-timeline` on two EVTX-ATTACK-SAMPLES files (CSV, and JSONL with `-m high`) | Pass; 19 detections in CSV, 4 at high+ in JSONL, about 2 s |
+| Hayabusa | `logon-summary` on the same files | Pass (no Security.evtx, so "No logon events were detected") |
+| Hayabusa | `update-rules` twice on a fresh volume | Pass after fix; first run converts bundled rules to a live clone, second reports latest |
+| sigma-cli 3.1.0 | `sigma version`, `list targets`, `list pipelines`, `check` with `network_mode: none` | Pass after caching ATT&CK/D3FEND data in the image |
+| sigma-cli | `./soc detections check` against the detections repo | Tool works; repo fails lint (2 rules use deprecated pipe/count syntax; pipeline file uses keys pySigma rejects). A corrected test pipeline converted the other 4 rules to Lucene |
+| Snort 3.12.2.0 | `snort -V`, `--help-module`, `snort-replay --check` (good and bad rules) | Pass; bad keyword reported with file and line |
+| Snort replay | 6 test rules against 5 pcapgen PCAPs (HTTP UA, URI, TLS SNI, DNS, TCP 4444, SYN fan-out) | Pass; every rule fired, 54 alerts for the folder |
+| Snort replay | `--json` output | Pass; fields src_addr, dst_addr, sid, class, priority, msg, service. Note `class` holds the long description ("A Network Trojan was detected"), not the classtype name |
+| pcapgen | http, tls, dns, tcp, scan | Pass; handshakes and payloads confirmed with tcpdump and Snort |
+| Dashboard | `/api/services` | Pass; 30 entries, 4 under Detection; Caddy route 200 with --resolve |
+
+### Fixes made during verification
+- Snort build needed libfl-dev (FlexLexer.h) and runtime libnuma1.
+- Hayabusa's bundled rules checkout cannot be updated by its built-in git; entrypoint clones fresh to a temp folder and swaps on success.
+- sigma check downloads ATT&CK data at runtime; cached at image build because the container has no network.
+- Hayabusa 4 renamed `csv-timeline` to `dfir-timeline`; docs updated.

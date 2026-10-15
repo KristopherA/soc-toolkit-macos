@@ -9,6 +9,7 @@ Conventions
   Evidence goes in ./cases on the Mac. Inside every tool it is /case.
   ./soc <tool> starts a throwaway container and removes it when the command ends.
   Secrets and ports live in .env (never commit or email it).
+  DETECTIONS_DIR in .env (your detections repo) appears as /detections in sigma, detections and snort.
 
 
 SETUP & LIFECYCLE
@@ -721,6 +722,228 @@ FAILURE
   [!] Too many errors of type "Access denied" ... - sites block automated checks from this IP; results are incomplete, not negative.
 
 
+WINDOWS EVENT LOGS - HAYABUSA
+---
+
+COMMAND
+  ./soc hayabusa dfir-timeline -d /case/<evtx-folder> -o /case/<file>.csv -w
+
+DESCRIPTION
+  Runs Sigma and Hayabusa rules over a folder of EVTX files and writes one timeline of detections. -w skips the interactive wizard. Version 4 renamed csv-timeline to dfir-timeline.
+
+USAGE
+  ./soc hayabusa dfir-timeline -d /case/ir-042/evtx -o /case/ir-042/timeline.csv -w -q
+
+SUCCESS
+  Top high alerts:   HTML Help HH.EXE Suspicious Chil... (1)
+  Saved file: /case/ir-042/timeline.csv (21.7 KiB)
+
+FAILURE
+  error: unrecognized subcommand 'csv-timeline' - v4 command name; use dfir-timeline.
+
+---
+
+COMMAND
+  ./soc hayabusa dfir-timeline -d <dir> -t jsonl -o <file>.jsonl -w -m <level>
+
+DESCRIPTION
+  Same scan as JSON Lines, keeping only alerts at or above a level, for import into Graylog or a script.
+
+USAGE
+  ./soc hayabusa dfir-timeline -d /case/ir-042/evtx -t jsonl -o /case/ir-042/high.jsonl -w -m high
+
+SUCCESS
+  Saved file: /case/ir-042/high.jsonl
+
+FAILURE
+  The file already exists - add -C to overwrite.
+
+---
+
+COMMAND
+  ./soc hayabusa logon-summary -d /case/<evtx-folder>
+
+DESCRIPTION
+  Summary of successful and failed logons by user, source IP and logon type from Security.evtx.
+
+USAGE
+  ./soc hayabusa logon-summary -d /case/ir-042/evtx -q
+
+SUCCESS
+  Successful Logons and Failed Logons tables: count, target user, target computer, logon type, source computer and IP.
+
+FAILURE
+  No logon events were detected. - the folder has no Security.evtx (only Sysmon or application logs).
+
+---
+
+COMMAND
+  ./soc hayabusa update-rules
+
+DESCRIPTION
+  Pulls the latest Hayabusa and Sigma rules into the hayabusa-rules volume. The first run replaces the bundled rules with a live clone; a failed download keeps the bundled rules.
+
+USAGE
+  ./soc hayabusa update-rules -q
+
+SUCCESS
+  Rules folder converted to a live clone; future update-rules runs pull changes.
+  You currently have the latest rules.
+
+FAILURE
+  Rules update failed; the bundled rules were kept. - no internet access from Docker; retry later.
+
+
+DETECTION ENGINEERING - SIGMA CLI
+---
+
+COMMAND
+  ./soc detections <make-target>
+
+DESCRIPTION
+  Runs make in DETECTIONS_DIR (your detections repo, /detections) with sigma-cli and the Elasticsearch backend installed. check = lint + convert every rule.
+
+USAGE
+  ./soc detections check
+
+SUCCESS
+  Found 0 errors, 0 condition errors and 0 issues.
+  === rules/snort-priority-1.yml ===
+  snort_alert:true AND (snort_priority:1)
+
+FAILURE
+  Condition error ... The pipe syntax in Sigma conditions has been deprecated - rewrite "| count() by" as a Sigma correlation rule.
+
+---
+
+COMMAND
+  ./soc sigma check /detections/rules
+
+DESCRIPTION
+  Validates Sigma rule schema, tags and conditions without converting. Works offline (ATT&CK data is cached in the image).
+
+USAGE
+  ./soc sigma check /detections/rules
+
+SUCCESS
+  No rule errors found.  No validation issues found.
+
+FAILURE
+  Error while parsing ... - YAML indentation or a missing detection/condition key in the named file.
+
+---
+
+COMMAND
+  ./soc sigma convert -t lucene -p <pipeline.yml> <rule or folder>
+
+DESCRIPTION
+  Converts Sigma rules to Lucene queries for Graylog searches and event definitions, applying your field-mapping pipeline.
+
+USAGE
+  ./soc sigma convert -t lucene -p /detections/pipelines/snort-graylog.yml /detections/rules/snort-priority-1.yml
+
+SUCCESS
+  snort_alert:true AND (snort_priority:1)
+
+FAILURE
+  SigmaConfigurationError: Unkown keys ['title', 'order', 'backends'] - pipeline file uses name, priority and allowed_backends.
+  Unknown transformation type 'field_mapping' - use field_name_mapping.
+
+---
+
+COMMAND
+  ./soc sigma list targets | pipelines
+
+DESCRIPTION
+  Shows installed backends (lucene, eql, esql, elastalert) and processing pipelines (windows, sysmon, ecs_windows).
+
+USAGE
+  ./soc sigma list pipelines
+
+SUCCESS
+  | sysmon             | 10       | Generic Log Sources to Sysmon Transformation | all | sysmon |
+
+FAILURE
+  (none common)
+
+
+DETECTION ENGINEERING - SNORT 3 REPLAY AND TEST PCAPS
+---
+
+COMMAND
+  ./soc snort-replay --check <rules file|dir>
+
+DESCRIPTION
+  Validates Snort 3 rules against the default snort.lua (snort -T). Rules go in ./cases or DETECTIONS_DIR.
+
+USAGE
+  ./soc snort-replay --check /case/rules/local.rules
+
+SUCCESS
+  (no output, exit code 0)
+
+FAILURE
+  ERROR: /case/rules/local.rules:1 unknown rule keyword: http_urii.
+  FATAL: see prior 1 errors (0 warnings) - typo or Snort 2 option name; the line number points at the rule.
+
+---
+
+COMMAND
+  ./soc snort-replay [--json] <rules file|dir> <pcap file|dir> [snort args]
+
+DESCRIPTION
+  Replays PCAPs through your rules offline (checksums ignored). --json prints alert_json with the fields the Graylog parse_json pipeline sees (src_addr, sid, class, priority, msg...).
+
+USAGE
+  ./soc snort-replay /case/rules/local.rules /case/pcaps/c2.pcap
+  ./soc snort-replay --json /case/rules/local.rules /case/pcaps > cases/scratch/alerts.jsonl
+
+SUCCESS
+  [**] [1:9000002:1] "TEST C2 gate.php check-in" [**] [Classification: A Network Trojan was detected] [Priority: 1] {TCP} 10.20.1.55:58072 -> 203.0.113.10:80
+  snort-replay: 3 alert(s)
+
+FAILURE
+  snort-replay: 0 alert(s) - rule did not match; check flow direction, ports, $HOME_NET (pass --lua "HOME_NET = '10.0.0.0/8'") and sticky buffers.
+
+---
+
+COMMAND
+  ./soc pcapgen <http|dns|tls|tcp|udp|scan> [options] -o /case/pcaps/<file>.pcap
+
+DESCRIPTION
+  Builds small test PCAPs with known content and full TCP handshakes. Client 10.20.1.55, server 203.0.113.10 unless --src/--dst given. --count repeats, --append adds to a file.
+
+USAGE
+  ./soc pcapgen http --host evil.example --uri /gate.php --ua "Mozilla/4.0 (compatible; MSIE 6.0)" -o /case/pcaps/c2.pcap --count 3
+  ./soc pcapgen tls --sni canary.example.com -o /case/pcaps/sni.pcap
+  ./soc pcapgen dns --qname bad.example -o /case/pcaps/dns.pcap
+  ./soc pcapgen tcp --dport 4444 --payload 'whoami\n' -o /case/pcaps/shell.pcap
+  ./soc pcapgen scan --ports 1-200 --open 22,443 -o /case/pcaps/scan.pcap
+
+SUCCESS
+  pcapgen: wrote 30 packets (http x3) to /case/pcaps/c2.pcap
+
+FAILURE
+  error: the following arguments are required: -o/--out - every command needs an output path under /case.
+
+---
+
+COMMAND
+  ./soc snort -c /usr/local/etc/snort/snort.lua <args>
+
+DESCRIPTION
+  Snort 3 with raw arguments, for options snort-replay does not cover (other loggers, rule profiling, --help-module).
+
+USAGE
+  ./soc snort --help-module http_inspect
+
+SUCCESS
+  int http_inspect.request_depth = -1: maximum request message body bytes to examine (-1 no limit)
+
+FAILURE
+  Cannot open file /case/... - path is outside ./cases or DETECTIONS_DIR (only /case and /detections exist inside).
+
+
 TROUBLESHOOTING
 ---
 
@@ -754,7 +977,7 @@ SUCCESS
   JSON written to cases/pslist.json
 
 FAILURE
-  service "volatility" is not defined - use the compose service name (volatility3, mvt, vtcli, clickgrab-cli, dnsdiag, ghidra).
+  service "volatility" is not defined - use the compose service name (volatility3, mvt, vtcli, clickgrab-cli, dnsdiag, ghidra, hayabusa, sigma, snort, pcapgen).
 
 ---
 

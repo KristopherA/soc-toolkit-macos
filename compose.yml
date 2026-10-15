@@ -255,6 +255,43 @@ services:
     <<: *cli
     image: soxoj/maigret:${MAIGRET_TAG:-latest}
 
+  # ---------------------------------------------------------------- detection engineering and log triage
+  # Windows event logs: Sigma + Hayabusa rules. Rules in a volume so `./soc hayabusa update-rules` persists.
+  hayabusa:
+    <<: *cli
+    build: ./build/hayabusa
+    image: soc-toolkit-macos/hayabusa:4.1.0
+    volumes:
+      - ./cases:/case
+      - hayabusa-rules:/opt/hayabusa/rules
+
+  # sigma-cli + make. DETECTIONS_DIR (your detections repo) is mounted read-write at /detections for `make check`.
+  sigma:
+    <<: *cli
+    build: ./build/sigma
+    image: soc-toolkit-macos/sigma:3.1.0
+    network_mode: none
+    volumes:
+      - ./cases:/case
+      - "${DETECTIONS_DIR:-./cases/detections}:/detections"
+
+  # Snort 3 offline replay. No network: it only reads PCAPs and rules. Detections repo mounted read-only.
+  snort:
+    <<: *cli
+    build: ./build/snort
+    image: soc-toolkit-macos/snort:3.12.2.0
+    network_mode: none
+    volumes:
+      - ./cases:/case
+      - "${DETECTIONS_DIR:-./cases/detections}:/detections:ro"
+
+  # Test PCAP builder (Scapy). Writes to ./cases; no network.
+  pcapgen:
+    <<: *cli
+    build: ./build/pcapgen
+    image: soc-toolkit-macos/pcapgen:local
+    network_mode: none
+
   # Ghidra's Linux decompiler is x86_64 only, so this runs under Rosetta. Own profile: the build is slow.
   ghidra:
     <<: *cli
@@ -284,3 +321,4 @@ volumes:
   mvt-iocs:
   amass-data:
   grype-db:
+  hayabusa-rules:

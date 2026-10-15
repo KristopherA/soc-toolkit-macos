@@ -39,7 +39,22 @@ Put evidence in `./cases`; every tool sees it as `/case`. Run `./soc help` for t
 ./soc grype graylog/graylog:6.1 -q
 ./soc syft graylog/graylog:6.1 -o table
 ./soc maigret jsmith --top-sites 300 --html
+./soc hayabusa dfir-timeline -d /case/ir-042/evtx -o /case/ir-042/timeline.csv -w
+./soc detections check                          # make check in DETECTIONS_DIR (sigma check + convert)
+./soc sigma convert -t lucene -p /detections/pipelines/snort-graylog.yml /detections/rules
+./soc pcapgen http --host evil.example --uri /gate.php -o /case/pcaps/c2.pcap
+./soc snort-replay /case/rules/local.rules /case/pcaps/c2.pcap   # add --json for Graylog fields
 ```
+
+### Detection engineering loop
+
+1. Write or edit a Snort rule (for example `cases/rules/local.rules`).
+2. Build a PCAP that should fire it with `pcapgen`, plus one that should not (a near-miss).
+3. `./soc snort-replay --check` validates syntax; `./soc snort-replay rules pcap` shows the alerts.
+4. `--json` prints the same alert_json fields the Graylog `parse_json` pipeline receives, so Sigma field names can be checked against real output.
+5. `./soc detections check` lints and converts the Sigma rules before they become Graylog event definitions.
+
+`DETECTIONS_DIR` in `.env` points at your detections repo and is mounted at `/detections` (read-write for `sigma`/`detections`, read-only for `snort`). Unset, it falls back to `cases/detections`.
 
 Full reference: **SOC-TOOLKIT-CHEATSHEET.txt**.
 
@@ -47,13 +62,13 @@ Full reference: **SOC-TOOLKIT-CHEATSHEET.txt**.
 
 ```
 compose.yml            services; CLI tools under the "cli" profile, Ghidra under "ghidra"
-.env / .env.example    ports, secrets, tags, GHIDRA_DIR, GITHUB_PROJECTS_DIR, PUBLIC_DNS_1/2
+.env / .env.example    ports, secrets, tags, GHIDRA_DIR, GITHUB_PROJECTS_DIR, DETECTIONS_DIR, PUBLIC_DNS_1/2
 setup.sh               creates .env; later runs only append new settings
 start.command / stop.command
 soc                    CLI wrapper (docker compose run --rm ...)
 sync-sources.sh        copies source-built tools from GitHubProjects into src/
 dashboard/             launcher, availability probes, Email Check proxy
-build/                 Dockerfiles for ClickGrab, vt-cli, MVT, Volatility 3
+build/                 Dockerfiles for ClickGrab, vt-cli, MVT, Volatility 3, Hayabusa, sigma-cli, Snort 3, pcapgen
 cases/                 evidence and output (git-ignored; keep out of iCloud)
 ```
 
@@ -64,6 +79,8 @@ cases/                 evidence and output (git-ignored; keep out of iCloud)
 - **Grype and Syft** mount the Docker socket read-only so they can scan local images.
 - **Email Check needs outbound TCP 25.** It is blocked on the network this was tested on, so mailbox probes time out; syntax and disposable-domain checks still work. Reacher can use a SOCKS5 proxy for SMTP if needed.
 - **Public resolvers.** Docker Desktop's resolver returned an empty MX answer for example.com (likely the internal split-horizon zone), so Reacher, Amass and tlsx use `PUBLIC_DNS_1/2` for an external view.
+- **Snort, sigma-cli and pcapgen run with no network** (`network_mode: none`). Hayabusa needs network only for `update-rules`.
+- Real-world PCAPs from malware-traffic-analysis.net and similar can contain live malware in reassembled streams; keep them in `cases/` and never extract carved files on the Mac.
 - MVT has no USB support in Docker on a Mac: use iOS backups and AndroidQF output.
 
 ## Updating

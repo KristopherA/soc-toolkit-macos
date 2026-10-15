@@ -38,6 +38,10 @@ CLI = [
     ("dnsdiag", "dnsdiag", "Exposure", "DNS latency, hijack and resolver-path diagnostics (dnsping, dnstraceroute, dnseval).", "./soc dnsping -c 5 -s 1.1.1.1 example.com", "dns"),
     ("grype", "Grype", "Vulnerability", "Scan container images, folders or SBOMs for known CVEs.", "./soc grype graylog/graylog:6.1", "bug"),
     ("syft", "Syft", "Vulnerability", "Generate a software bill of materials (SBOM) for an image or folder.", "./soc syft graylog/graylog:6.1 -o table", "list"),
+    ("hayabusa", "Hayabusa", "Detection", "Windows event log (EVTX) triage: Sigma and Hayabusa rules to a CSV/JSONL timeline.", "./soc hayabusa dfir-timeline -d /case/evtx -o /case/timeline.csv -w", "log"),
+    ("sigma", "sigma-cli", "Detection", "Lint Sigma rules and convert them to Lucene queries for Graylog; runs your detections Makefile.", "./soc detections check", "shield"),
+    ("snort", "Snort 3 Replay", "Detection", "Replay PCAPs through your Snort 3 rules offline; alert_fast or Graylog-ready alert_json.", "./soc snort-replay /case/rules/local.rules /case/pcaps/test.pcap", "wave"),
+    ("pcapgen", "pcapgen", "Detection", "Build small known-content test PCAPs: HTTP, DNS, TLS SNI, TCP/UDP payloads, port-scan fan-out.", "./soc pcapgen tls --sni canary.example.com -o /case/pcaps/sni.pcap", "wave"),
     ("maigret", "Maigret", "OSINT", "Find accounts by username across 3,000+ sites for impersonation cases.", "./soc maigret jsmith --top-sites 200", "person"),
 ]
 

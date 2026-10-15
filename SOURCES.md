@@ -32,4 +32,15 @@ Checked 2026-10-15 on Apple Silicon (Docker Desktop 29.8.2, ARM64). Tags marked 
 | OWASP Nettacker | Network-Security/Nettacker | 0.4.1, git a2157ee | upstream Dockerfile |
 | Ghidra | Malware-Analysis-RE/ghidra_12.0_PUBLIC (built in place, GHIDRA_DIR) | 12.0 PUBLIC | upstream docker/Dockerfile, platform linux/amd64 (decompiler is x86_64 only) |
 
+## Built from pinned upstream releases (build/, no GitHubProjects copy)
+
+| Tool | Version | Source and checksum | Dockerfile |
+|---|---|---|---|
+| Hayabusa | 4.1.0 (2026-09-12) | GitHub release lin-aarch64-musl `385604bf…a27b16`, lin-x64-musl `2348a889…d42bed`; bundled rules updated with `./soc hayabusa update-rules` | build/hayabusa (alpine:3.20, non-root) |
+| sigma-cli | 3.1.0 with pySigma 1.5.1, backend-elasticsearch 2.1.1, pipeline-windows 2.0.1, pipeline-sysmon 2.0.0 | PyPI, pinned | build/sigma (python:3.12-slim + make) |
+| Snort 3 | 3.12.2.0 with libdaq 3.0.27 | GitHub tag tarballs, `43000d6b…58720b` and `03fac3da…f24601c` | build/snort (debian:bookworm-slim, compiled, non-root) |
+| Scapy (pcapgen) | 2.7.0 | PyPI, pinned | build/pcapgen (python:3.12-slim) |
+
+Newer releases existed but were under two weeks old when checked (Hayabusa 4.2.0, pySigma 2.0.x, Scapy 2.8.0); sigma-cli 3.1.0 also requires pySigma below 2.0.
+
 Excluded when copying: ClickGrab's nightly_reports/docs/public (620+ MB of published reports), a stray Python virtualenv inside the Nettacker folder, and test/doc folders.

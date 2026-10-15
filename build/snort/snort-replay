@@ -1,0 +1,40 @@
+#!/bin/bash
+# Replay PCAPs through Snort 3 with your rules, offline.
+#   snort-replay [--json] <rules file|dir> <pcap file|dir> [extra snort args]
+#   snort-replay --check <rules file|dir>            validate rules only (snort -T)
+# --json prints alert_json lines with the fields the Graylog parse_json pipeline expects.
+set -euo pipefail
+conf=/usr/local/etc/snort/snort.lua
+json=0; check=0
+while [[ $# -gt 0 && $1 == --* ]]; do
+  case $1 in
+    --json) json=1 ;;
+    --check) check=1 ;;
+    --) shift; break ;;
+    *) break ;;
+  esac
+  shift
+done
+usage() { echo "Usage: snort-replay [--json] <rules file|dir> <pcap file|dir> [snort args]"; echo "       snort-replay --check <rules file|dir>"; exit 2; }
+[[ $# -ge 1 ]] || usage
+rules=$1; shift
+[[ -e $rules ]] || { echo "Rules not found: $rules (files must be under ./cases or DETECTIONS_DIR)" >&2; exit 2; }
+if [[ -d $rules ]]; then rule_args=(--rule-path "$rules"); else rule_args=(-R "$rules"); fi
+if (( check )); then
+  exec snort -c "$conf" "${rule_args[@]}" -T -q "$@"
+fi
+[[ $# -ge 1 ]] || usage
+pcap=$1; shift
+[[ -e $pcap ]] || { echo "PCAP not found: $pcap" >&2; exit 2; }
+if [[ -d $pcap ]]; then pcap_args=(--pcap-dir "$pcap"); else pcap_args=(-r "$pcap"); fi
+if (( json )); then
+  fields="timestamp pkt_num proto pkt_gen pkt_len dir src_addr src_port dst_addr dst_port service rule gid sid rev msg class priority action"
+  out_args=(-A alert_json --lua "alert_json = { fields = '$fields' }")
+else
+  out_args=(-A alert_fast)
+fi
+# -k none: crafted or truncated captures often have bad checksums; still inspect them.
+out=$(snort -c "$conf" "${rule_args[@]}" "${pcap_args[@]}" "${out_args[@]}" -k none -q "$@")
+[[ -n $out ]] && printf '%s\n' "$out"
+n=0; [[ -n $out ]] && n=$(printf '%s\n' "$out" | grep -c .)
+echo "snort-replay: $n alert(s)" >&2
