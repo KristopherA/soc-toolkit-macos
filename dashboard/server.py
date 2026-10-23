@@ -62,13 +62,21 @@ LINKS = [
 def port_of(s):
     return int(os.getenv(s[4], s[5]))
 
+DOMAIN = os.getenv("SOC_DOMAIN", "").strip()
+# Hostname prefix under SOC_DOMAIN for each web tool (Caddy routes in ~/docker/caddy/Caddyfile).
+HOSTS = {"bloodhound": "bloodhound", "mobsf": "mobsf", "nettacker": "nettacker", "clickgrab": "clickgrab", "email-check": "soc"}
+
 def service_url(s):
+    # HTTPS via the Caddy proxy when a domain is set; otherwise the localhost port.
+    if DOMAIN:
+        return f"https://{HOSTS[s[0]]}.{DOMAIN}{s[8]}"
     # Nettacker serves HTTPS with its own self-signed certificate.
     scheme = "https" if s[6].startswith("https:") else "http"
     return f"{scheme}://localhost:{port_of(s)}{s[8]}"
 
 def service_catalog():
     return [dict(id=s[0], name=s[1], category=s[2], description=s[3], port=port_of(s),
+                 host=f"{HOSTS[s[0]]}.{DOMAIN}" if DOMAIN else None,
                  url=service_url(s), icon=s[7]) for s in SERVICES] + \
            [dict(id=c[0], name=c[1], category=c[2], description=c[3], command=c[4], icon=c[5], cli=True) for c in CLI] + \
            [dict(id=l[0], name=l[1], category=l[2], description=l[3], url=l[4], icon=l[5], external=True) for l in LINKS]

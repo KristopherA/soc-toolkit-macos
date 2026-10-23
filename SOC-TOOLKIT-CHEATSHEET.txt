@@ -30,7 +30,7 @@ SUCCESS
 
 FAILURE
   Install Docker Desktop for Mac first ... - Docker is not installed or not on PATH.
-  Missing /etc/hosts entry for soc.tools.kristopher.cloud - run the printed sudo command once.
+  Missing /etc/hosts entries: ... - run the printed sudo command once.
   The dashboard did not become ready. Check: docker compose logs dashboard - container failed to start.
 
 ---
@@ -68,6 +68,23 @@ SUCCESS
 
 FAILURE
   mobsf restarting Restarting (1) 24 seconds ago - read its logs: docker compose logs --tail 40 mobsf
+
+---
+
+COMMAND
+  docker logs --tail 40 caddy
+
+DESCRIPTION
+  Caddy proxy log. Check here when an https://*.tools.kristopher.cloud name returns an error but the localhost port works.
+
+USAGE
+  docker logs --tail 40 caddy 2>&1 | grep -i error
+
+SUCCESS
+  (no output) - no proxy errors
+
+FAILURE
+  dial tcp: lookup soc-mobsf ... no such host - that service is down or not on the proxy network; run docker compose up -d.
 
 ---
 
@@ -140,11 +157,11 @@ FAILURE
   (no output) - key name is wrong or .env not created yet; run ./setup.sh.
 
 
-WEB TOOLS (open from http://localhost:9080)
+WEB TOOLS (open from https://soc.tools.kristopher.cloud)
 ---
 
 COMMAND
-  BloodHound CE  http://localhost:9081
+  BloodHound CE  https://bloodhound.tools.kristopher.cloud  (fallback :9081)
 
 DESCRIPTION
   Active Directory / Entra ID attack-path analysis. Sign in as admin with BLOODHOUND_ADMIN_PASSWORD; a new password is required at first login. Ingest SharpHound or AzureHound ZIPs under Administration > File Ingest.
@@ -162,7 +179,7 @@ FAILURE
 ---
 
 COMMAND
-  MobSF  http://localhost:9082
+  MobSF  https://mobsf.tools.kristopher.cloud  (fallback :9082)
 
 DESCRIPTION
   Static analysis of APK, AAB and IPA files: permissions, trackers, hard-coded secrets, malware signals. Sign in as mobsf with MOBSF_ADMIN_PASSWORD.
@@ -179,7 +196,7 @@ FAILURE
 ---
 
 COMMAND
-  OWASP Nettacker  https://localhost:9083
+  OWASP Nettacker  https://nettacker.tools.kristopher.cloud  (fallback https://localhost:9083)
 
 DESCRIPTION
   Web-UI scanner for ports, services, CVEs and weak configurations on hosts your organization owns. Uses a self-signed certificate; paste NETTACKER_API_KEY into the key box.
@@ -196,7 +213,7 @@ FAILURE
 ---
 
 COMMAND
-  ClickGrab web UI  http://localhost:9084
+  ClickGrab web UI  https://clickgrab.tools.kristopher.cloud  (fallback :9084)
 
 DESCRIPTION
   Analyze a fake CAPTCHA / ClickFix lure page: redirects, clipboard commands, PowerShell, IOCs. Fetches the page from this Mac's public IP.
@@ -213,7 +230,7 @@ FAILURE
 ---
 
 COMMAND
-  Email Check  http://localhost:9080/email-check.html
+  Email Check  https://soc.tools.kristopher.cloud/email-check.html
 
 DESCRIPTION
   Checks whether a sender or reply-to address exists (syntax, MX, disposable domain, SMTP mailbox probe) using a local Reacher backend.

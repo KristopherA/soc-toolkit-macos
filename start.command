@@ -42,9 +42,15 @@ if [[ -n "$soc_host" ]]; then
   if [[ -f "$caddy_dir/docker-compose.yml" ]] && ! docker ps --format '{{.Names}}' | /usr/bin/grep -qx caddy; then
     docker compose --project-directory "$caddy_dir" -f "$caddy_dir/docker-compose.yml" up -d >/dev/null 2>&1 || true
   fi
-  if ! /usr/bin/grep -Eq "^[[:space:]]*127\.0\.0\.1([[:space:]]+[^[:space:]]+)*[[:space:]]+$soc_host([[:space:]]|$)" /etc/hosts; then
-    echo "Missing /etc/hosts entry for $soc_host. Add it with:"
-    echo "  echo '127.0.0.1  $soc_host' | sudo tee -a /etc/hosts && sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder"
+  soc_domain=$(/usr/bin/sed -n 's/^SOC_DOMAIN=//p' .env | tail -1)
+  names=("$soc_host"); [[ -n "$soc_domain" ]] && names+=(bloodhound.$soc_domain mobsf.$soc_domain nettacker.$soc_domain clickgrab.$soc_domain)
+  missing=()
+  for n in "${names[@]}"; do
+    /usr/bin/grep -Eq "^[[:space:]]*127\.0\.0\.1([[:space:]]+[^[:space:]]+)*[[:space:]]+${n//./\\.}([[:space:]]|$)" /etc/hosts || missing+=("$n")
+  done
+  if (( ${#missing[@]} )); then
+    echo "Missing /etc/hosts entries: ${missing[*]}. Add them with:"
+    echo "  printf '\\n# BEGIN soc-toolkit (Caddy proxy)\\n127.0.0.1  ${missing[*]}\\n# END soc-toolkit\\n' | sudo tee -a /etc/hosts && sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder"
   elif curl --silent --fail --max-time 3 "https://$soc_host/api/health" >/dev/null; then
     dashboard_url="https://$soc_host"
   else

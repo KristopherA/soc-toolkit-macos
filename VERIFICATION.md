@@ -57,3 +57,4 @@ Mac: Apple Silicon, Docker Desktop 29.8.2. Admin Toolkit running alongside (no p
 - Hayabusa's bundled rules checkout cannot be updated by its built-in git; entrypoint clones fresh to a temp folder and swaps on success.
 - sigma check downloads ATT&CK data at runtime; cached at image build because the container has no network.
 - Hayabusa 4 renamed `csv-timeline` to `dfir-timeline`; docs updated.
+- 2026-10-23: all web tools behind Caddy. Via --resolve to 127.0.0.1 with a valid certificate: soc 200, bloodhound UI 200 + API login 200, mobsf login POST with CSRF 302 to /, nettacker 200 (self-signed upstream, skip-verify), clickgrab 200 + websocket upgrade 101 (through host port, not the proxy network).

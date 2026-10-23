@@ -77,7 +77,7 @@ function render() {
       if (service.external) link.rel = 'noopener noreferrer';
       link.setAttribute('aria-label', service.external ? `Open ${service.name} website in a new tab` : `Open ${service.name} in service tab`);
       const linkText = document.createElement('span'); linkText.textContent = service.external ? 'Open site' : 'Open tool';
-      const port = document.createElement('small'); port.textContent = service.external ? new URL(service.url).host.replace(/^(www|app|viz)\./, '') : `:${service.port}`; linkText.append(port);
+      const port = document.createElement('small'); port.textContent = service.external ? new URL(service.url).host.replace(/^(www|app|viz)\./, '') : (service.host ? service.host.split('.')[0] : `:${service.port}`); linkText.append(port);
       const arrow = document.createElement('span'); arrow.textContent = '↗'; arrow.setAttribute('aria-hidden', 'true'); link.append(linkText, arrow);
       link.addEventListener('click', () => {
         recent = service.id;
@@ -160,6 +160,7 @@ $('#copy-command').addEventListener('click', async () => {
 });
 
 async function init() {
+  const hl = $('#host-label'); if (hl) hl.textContent = location.hostname === 'localhost' ? 'LOCALHOST' : location.hostname.toUpperCase();
   try {
     const response = await fetch('/api/services', {signal:AbortSignal.timeout(6000)});
     if (!response.ok) throw new Error('Catalog unavailable');

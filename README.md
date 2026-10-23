@@ -5,21 +5,27 @@ SOC analysis tools on one dashboard, in one Docker Compose project, next to the 
 ## Start
 
 1. Double-click **start.command** (or run `./start.command`). On first run it creates `.env` with fresh secrets, copies tool sources from GitHubProjects into `src/`, builds and starts the web tools, opens the dashboard, and builds the CLI images in the background (`cli-build.log`).
-2. Visit **https://soc.tools.kristopher.cloud** (Caddy, wildcard Let's Encrypt cert) or **http://localhost:9080**. The HTTPS name needs `127.0.0.1  soc.tools.kristopher.cloud` in /etc/hosts; start.command prints the command if it is missing.
+2. Visit **https://soc.tools.kristopher.cloud** (or http://localhost:9080 as a fallback).
 3. Stop with **stop.command**. Data, settings and `cases/` are kept.
 
 Ghidra is not built automatically (about 15 minutes under Rosetta): `docker compose --profile ghidra build ghidra`.
 
 ## Web tools
 
-| Tool | Address | Sign-in |
-|---|---|---|
-| Dashboard | http://localhost:9080 | None |
-| BloodHound CE | http://localhost:9081 | `admin` / `BLOODHOUND_ADMIN_PASSWORD`; change forced at first login |
-| MobSF | http://localhost:9082 | `mobsf` / `MOBSF_ADMIN_PASSWORD` |
-| OWASP Nettacker | https://localhost:9083 (self-signed) | paste `NETTACKER_API_KEY` |
-| ClickGrab | http://localhost:9084 | None |
-| Email Check (Reacher) | http://localhost:9080/email-check.html | None |
+All web tools sit behind the shared Caddy proxy (`~/docker/caddy`, wildcard `*.tools.kristopher.cloud` certificate). The 127.0.0.1 ports stay as a fallback, and the dashboard links use the HTTPS names whenever `SOC_DOMAIN` is set.
+
+| Tool | HTTPS via Caddy | Fallback | Sign-in |
+|---|---|---|---|
+| Dashboard | https://soc.tools.kristopher.cloud | http://localhost:9080 | None |
+| BloodHound CE | https://bloodhound.tools.kristopher.cloud | :9081 | `admin` / `BLOODHOUND_ADMIN_PASSWORD`; change forced at first login |
+| MobSF | https://mobsf.tools.kristopher.cloud | :9082 | `mobsf` / `MOBSF_ADMIN_PASSWORD` |
+| OWASP Nettacker | https://nettacker.tools.kristopher.cloud | https://localhost:9083 | paste `NETTACKER_API_KEY` |
+| ClickGrab | https://clickgrab.tools.kristopher.cloud | :9084 | None |
+| Email Check | https://soc.tools.kristopher.cloud/email-check.html | :9080 | None |
+
+Caddy reaches the dashboard, BloodHound, MobSF and Nettacker on the external `proxy` network (aliases `soc-*`). ClickGrab is reached through its host port (`host.docker.internal:9084`), so the container that fetches hostile pages never joins the network shared with the Admin Toolkit. Reacher, Postgres and Neo4j are not exposed.
+
+Each name needs a 127.0.0.1 line in /etc/hosts; start.command prints the exact command for any that are missing.
 
 Print a value: `sed -n 's/^MOBSF_ADMIN_PASSWORD=//p' .env`
 
