@@ -49,15 +49,36 @@ if [[ -n "$soc_host" ]]; then
     /usr/bin/grep -Eq "^[[:space:]]*127\.0\.0\.1([[:space:]]+[^[:space:]]+)*[[:space:]]+${n//./\\.}([[:space:]]|$)" /etc/hosts || missing+=("$n")
   done
   if (( ${#missing[@]} )); then
-    echo "Missing /etc/hosts entries: ${missing[*]}. Add them with:"
-    echo "  printf '\\n# BEGIN soc-toolkit (Caddy proxy)\\n127.0.0.1  ${missing[*]}\\n# END soc-toolkit\\n' | sudo tee -a /etc/hosts && sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder"
-  elif curl --silent --fail --max-time 3 "https://$soc_host/api/health" >/dev/null; then
-    dashboard_url="https://$soc_host"
-  else
-    echo "Caddy did not answer for $soc_host; using localhost. Check: docker logs caddy"
+    # The HTTPS names only work once they resolve to this Mac. Adding them needs an administrator password.
+    echo
+    echo "These names are not in /etc/hosts yet: ${missing[*]}"
+    echo "Without them the dashboard opens on localhost and the tool links cannot load."
+    answer=n
+    [[ -t 0 ]] && read -r -p "Add them now? You will be asked for your Mac password. [Y/n] " answer
+    if [[ -z "$answer" || "$answer" =~ ^[Yy] ]]; then
+      if printf '\n# BEGIN soc-toolkit (Caddy proxy)\n127.0.0.1  %s\n# END soc-toolkit\n' "${missing[*]}" | sudo tee -a /etc/hosts >/dev/null; then
+        sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder 2>/dev/null || true
+        missing=()
+        echo "Added to /etc/hosts."
+      else
+        echo "Could not update /etc/hosts; continuing on localhost."
+      fi
+    else
+      echo "Skipped. To add them later:"
+      echo "  printf '\\n# BEGIN soc-toolkit (Caddy proxy)\\n127.0.0.1  ${missing[*]}\\n# END soc-toolkit\\n' | sudo tee -a /etc/hosts"
+    fi
+  fi
+  if (( ${#missing[@]} == 0 )); then
+    # Caddy can take a few seconds to answer after starting or reloading.
+    for ((i=0; i<10; i++)); do
+      if curl --silent --fail --max-time 3 "https://$soc_host/api/health" >/dev/null; then dashboard_url="https://$soc_host"; break; fi
+      sleep 2
+    done
+    [[ "$dashboard_url" == https://* ]] || echo "Caddy did not answer for $soc_host; using localhost. Check: docker logs caddy"
   fi
 fi
-echo "Dashboard: $dashboard_url  (fallback: http://localhost:$dashboard_port)"
+echo "Dashboard: $dashboard_url"
+[[ "$dashboard_url" == https://* ]] && echo "Fallback without Caddy: http://localhost:$dashboard_port"
 echo "BloodHound and MobSF take a minute or two to initialize. The dashboard updates their availability."
 echo "Command-line tools: ./soc help   ·   Reference: SOC-TOOLKIT-CHEATSHEET.txt"
 open "$dashboard_url"

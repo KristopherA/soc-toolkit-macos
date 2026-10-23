@@ -25,7 +25,7 @@ All web tools sit behind the shared Caddy proxy (`~/docker/caddy`, wildcard `*.t
 
 Caddy reaches the dashboard, BloodHound, MobSF and Nettacker on the external `proxy` network (aliases `soc-*`). ClickGrab is reached through its host port (`host.docker.internal:9084`), so the container that fetches hostile pages never joins the network shared with the Admin Toolkit. Reacher, Postgres and Neo4j are not exposed.
 
-Each name needs a 127.0.0.1 line in /etc/hosts; start.command prints the exact command for any that are missing.
+Each name needs a 127.0.0.1 line in /etc/hosts. On first run start.command offers to add any missing names (it asks for your Mac password through sudo), then opens https://soc.tools.kristopher.cloud. If you decline, or Caddy does not answer, it opens http://localhost:9080 instead.
 
 Print a value: `sed -n 's/^MOBSF_ADMIN_PASSWORD=//p' .env`
 
